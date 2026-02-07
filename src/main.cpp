@@ -329,6 +329,16 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
         <option value="8" %SEL8%>Camera 8</option>
         <option value="9" %SEL9%>Camera 9</option>
         <option value="10" %SEL10%>Camera 10</option>
+        <option value="11" %SEL11%>Camera 11</option>
+        <option value="12" %SEL12%>Camera 12</option>
+        <option value="13" %SEL13%>Camera 13</option>
+        <option value="14" %SEL14%>Camera 14</option>
+        <option value="15" %SEL15%>Camera 15</option>
+        <option value="16" %SEL16%>Camera 16</option>
+        <option value="17" %SEL17%>Camera 17</option>
+        <option value="18" %SEL18%>Camera 18</option>
+        <option value="19" %SEL19%>Camera 19</option>
+        <option value="20" %SEL20%>Camera 20</option>
       </select>
     </div>
     <div class="card">
@@ -477,9 +487,9 @@ String buildPage() {
   html.replace("%SN3%", isStatic ? String(config.subnet[2]) : "255");
   html.replace("%SN4%", isStatic ? String(config.subnet[3]) : "0");
 
-  // Camera (1-10)
+  // Camera (1-20)
   uint8_t cam = hasValidConfig() ? config.cameraNumber : 1;
-  for (int i = 1; i <= 10; i++) {
+  for (int i = 1; i <= 20; i++) {
     String key = "%SEL" + String(i) + "%";
     html.replace(key, (cam == i) ? "selected" : "");
   }
