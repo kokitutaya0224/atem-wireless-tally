@@ -40,7 +40,7 @@ const char* AP_PASS = "";
 // ============================================================
 
 #define EEPROM_SIZE 512
-#define EEPROM_MAGIC 0xB0  // 構造体変更のため更新
+#define EEPROM_MAGIC 0xB1  // 変更: 旧設定を無効化してポータルモードで起動
 
 struct Config {
   uint8_t  magic;
@@ -588,6 +588,11 @@ void startPortal() {
   portalMode = true;
   currentState = TALLY_PORTAL;
 
+  // 静的IP設定をクリア（前回の設定が残るとAPが起動しない問題の対策）
+  WiFi.disconnect(true);
+  delay(100);
+  WiFi.config(IPAddress(0, 0, 0, 0), IPAddress(0, 0, 0, 0), IPAddress(0, 0, 0, 0));
+
   WiFi.mode(WIFI_AP_STA);  // APモードでもスキャン可能にする
 
   // カスタムAP IP設定
@@ -626,7 +631,21 @@ void startTally() {
   Serial.printf("ATEM: %d.%d.%d.%d\n", config.atemIp[0], config.atemIp[1], config.atemIp[2], config.atemIp[3]);
   Serial.printf("Camera: %d\n", config.cameraNumber);
 
-  WiFi.mode(WIFI_STA);
+  // AP+STA両方を起動（設定ポータルを常時アクセス可能にする）
+  WiFi.mode(WIFI_AP_STA);
+
+  // APを起動（設定変更用に常時稼働）
+  if (config.apIp[0] != 0) {
+    IPAddress apIp(config.apIp[0], config.apIp[1], config.apIp[2], config.apIp[3]);
+    IPAddress apGw(config.apIp[0], config.apIp[1], config.apIp[2], config.apIp[3]);
+    IPAddress apSn(255, 255, 255, 0);
+    WiFi.softAPConfig(apIp, apGw, apSn);
+  }
+  WiFi.softAP(AP_SSID, AP_PASS);
+  Serial.print("AP active: ");
+  Serial.print(AP_SSID);
+  Serial.print(" -> http://");
+  Serial.println(WiFi.softAPIP());
 
   // 固定IP設定
   if (config.useStaticIp == 1) {
@@ -649,22 +668,32 @@ void startTally() {
   }
 
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("\nWiFi connection failed! Starting portal...");
-    startPortal();
-    return;
+    Serial.println("\nWiFi connection failed! Portal is still available via AP.");
+  } else {
+    Serial.println();
+    Serial.print("Connected! IP: ");
+    Serial.println(WiFi.localIP());
   }
 
-  Serial.println();
-  Serial.print("Connected! IP: ");
-  Serial.println(WiFi.localIP());
+  // Webサーバー起動（タリーモードでも設定変更可能）
+  server.on("/", handleRoot);
+  server.on("/save", HTTP_POST, handleSave);
+  server.on("/scan", handleScan);
+  server.on("/led", handleLed);
+  server.on("/reset", handleReset);
+  server.begin();
+  Serial.println("Web server started on AP");
 
-  IPAddress atemIP(config.atemIp[0], config.atemIp[1], config.atemIp[2], config.atemIp[3]);
-  atemSwitcher.begin(atemIP);
-  atemSwitcher.serialOutput(0x80);
-  atemSwitcher.connect();
-
-  currentState = TALLY_DISCONNECTED;
-  Serial.println("ATEM connecting...");
+  if (WiFi.status() == WL_CONNECTED) {
+    IPAddress atemIP(config.atemIp[0], config.atemIp[1], config.atemIp[2], config.atemIp[3]);
+    atemSwitcher.begin(atemIP);
+    atemSwitcher.serialOutput(0x80);
+    atemSwitcher.connect();
+    currentState = TALLY_DISCONNECTED;
+    Serial.println("ATEM connecting...");
+  } else {
+    currentState = TALLY_DISCONNECTED;
+  }
 }
 
 // ============================================================
@@ -759,16 +788,29 @@ void setup() {
 // ============================================================
 
 void loop() {
+  // Webサーバーは常時処理（ポータルモードでもタリーモードでも）
+  server.handleClient();
+
   if (portalMode) {
-    server.handleClient();
     updateLED();
     return;
   }
 
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi lost! Restarting...");
+  // リセットボタン: 動作中でもポータルモードに戻る
+  if (digitalRead(RESET_PIN) == LOW) {
+    Serial.println("Reset button pressed! Clearing config...");
+    setRGB(255, 165, 0);
+    clearConfig();
     delay(1000);
     ESP.restart();
+    return;
+  }
+
+  if (WiFi.status() != WL_CONNECTED) {
+    // WiFi切断されてもAPは生きているので再接続を試みる
+    Serial.println("WiFi lost! Reconnecting...");
+    WiFi.begin(config.wifiSsid, config.wifiPass);
+    delay(5000);
     return;
   }
 
