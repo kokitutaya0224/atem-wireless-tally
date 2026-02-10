@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATEM Wireless Tally - Install</title>
+<script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Helvetica Neue', Arial, 'Noto Sans JP', sans-serif;
+    background: #f5f5f5; color: #333;
+    min-height: 100dvh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 16px;
+  }
+  .container { max-width: 520px; width: 100%; }
+  .header { text-align: center; margin-bottom: 32px; }
+  .logo { margin-bottom: 20px; }
+  .logo img { width: 200px; height: auto; }
+  .header h1 {
+    font-size: 1.8em; font-weight: 700; color: #333;
+    letter-spacing: 0.04em; margin-bottom: 6px;
+  }
+  .header p { font-size: 0.85em; color: #999; letter-spacing: 0.02em; }
+  .card {
+    background: #fff; border-radius: 8px; padding: 28px 32px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .section-title {
+    font-size: 0.7em; font-weight: 600; color: #007cff;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    margin-bottom: 16px; padding-bottom: 10px;
+    border-bottom: 1px solid #eee;
+  }
+  .install-card { text-align: center; padding: 40px 32px; }
+  .install-card p {
+    font-size: 0.88em; color: #666; line-height: 1.7;
+    margin-bottom: 24px;
+  }
+  esp-web-install-button {
+    display: inline-block;
+  }
+  esp-web-install-button button {
+    display: inline-block; padding: 14px 48px;
+    background: #007cff; color: #fff; border: none;
+    border-radius: 4px; font-size: 1em;
+    font-weight: 600; letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.2s ease;
+  }
+  esp-web-install-button button:hover { background: #0066d6; }
+  esp-web-install-button button:active { background: #0055b3; transform: scale(0.99); }
+  .unsupported { display: none; }
+  .steps { list-style: none; counter-reset: step; }
+  .steps li {
+    counter-increment: step;
+    padding: 10px 0 10px 40px;
+    position: relative;
+    font-size: 0.88em; line-height: 1.6;
+    color: #555;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  .steps li:last-child { border-bottom: none; }
+  .steps li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 10px;
+    width: 26px; height: 26px;
+    background: #007cff; color: #fff;
+    border-radius: 50%; font-size: 0.75em;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .led-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+  .led-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f5f5f5;
+  }
+  .led-table tr:last-child td { border-bottom: none; }
+  .led-dot {
+    display: inline-block; width: 12px; height: 12px;
+    border-radius: 50%; margin-right: 8px; vertical-align: middle;
+  }
+  .dot-red { background: #e53935; }
+  .dot-green { background: #43a047; }
+  .dot-off { background: #ddd; border: 1px solid #ccc; }
+  .dot-blue { background: #1e88e5; }
+  .dot-white { background: #fff; border: 1px solid #ccc; }
+  .wiring {
+    font-family: 'SF Mono', 'Menlo', monospace;
+    font-size: 0.78em; line-height: 1.8;
+    background: #fafafa; border-radius: 4px;
+    padding: 16px; color: #555;
+    white-space: pre;
+  }
+  .note {
+    font-size: 0.78em; color: #999; line-height: 1.6;
+    margin-top: 12px;
+  }
+  .browser-warning {
+    background: #fff3e0; border-radius: 4px;
+    padding: 16px; margin-bottom: 16px;
+    font-size: 0.85em; color: #e65100;
+    display: none;
+  }
+  .footer {
+    text-align: center; margin-top: 20px;
+    font-size: 0.72em; color: #bbb; letter-spacing: 0.02em;
+  }
+  .footer a { color: #999; text-decoration: none; }
+  .footer a:hover { color: #007cff; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">
+      <img src="data:image/webp;base64,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" alt="Symphonity">
+    </div>
+    <h1>ATEM Tally</h1>
+    <p>Wireless Tally Light Installer</p>
+  </div>
+
+  <div class="browser-warning" id="browserWarning">
+    このブラウザはWeb Serialに対応していません。<br>
+    <strong>Google Chrome</strong> または <strong>Microsoft Edge</strong> をお使いください。
+  </div>
+
+  <div class="card install-card">
+    <p>
+      ESP8266をUSBケーブルでPCに接続し、<br>
+      下のボタンをクリックしてファームウェアを書き込みます。
+    </p>
+    <esp-web-install-button manifest="manifest.json">
+      <button slot="activate">Install Firmware</button>
+      <span slot="unsupported">
+        <p style="color: #e65100; font-size: 0.88em;">
+          このブラウザはWeb Serialに対応していません。<br>
+          <strong>Chrome</strong> または <strong>Edge</strong> を使用してください。
+        </p>
+      </span>
+      <span slot="not-allowed">
+        <p style="color: #e65100; font-size: 0.88em;">
+          HTTPS接続が必要です。
+        </p>
+      </span>
+    </esp-web-install-button>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Setup Steps</div>
+    <ol class="steps">
+      <li>上のボタンでファームウェアをESP8266に書き込み</li>
+      <li>書き込み完了後、ESP8266が再起動し <strong>ATEM-Tally</strong> WiFiが出現</li>
+      <li>スマホまたはPCで <strong>ATEM-Tally</strong> に接続</li>
+      <li>ブラウザで <strong>http://192.168.4.1</strong> にアクセス</li>
+      <li>WiFiネットワーク、ATEM IPアドレス、カメラ番号を設定</li>
+      <li>「Save & Restart」で保存 &rarr; タリーライトが動作開始</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Wiring</div>
+    <div class="wiring">RGB LED (Common Anode)
+├── R (Red)    → D5 (GPIO14)  + 220&#8486;
+├── Long leg   → 3.3V
+├── G (Green)  → D6 (GPIO12)  + 220&#8486;
+└── B (Blue)   → D7 (GPIO13)  + 220&#8486;
+
+Reset Button (Optional)
+└── D1 (GPIO5) → GND</div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">LED Status</div>
+    <table class="led-table">
+      <tr><td><span class="led-dot dot-red"></span>Red</td><td>PROGRAM (ON AIR)</td></tr>
+      <tr><td><span class="led-dot dot-green"></span>Green</td><td>PREVIEW</td></tr>
+      <tr><td><span class="led-dot dot-off"></span>Off</td><td>Not selected</td></tr>
+      <tr><td><span class="led-dot dot-blue"></span>Blue (blink)</td><td>ATEM disconnected</td></tr>
+      <tr><td><span class="led-dot dot-white"></span>White (blink)</td><td>Setup portal mode</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Reset</div>
+    <p class="note">
+      設定をリセットするには、以下のいずれかの方法を使用してください：<br><br>
+      <strong>ボタン:</strong> D1ピンのリセットボタンを押しながら電源ON<br>
+      <strong>ブラウザ:</strong> <code>http://&lt;IP&gt;/reset</code> にアクセス<br>
+      <strong>シリアル:</strong> 115200bpsで <code>reset</code> と送信
+    </p>
+  </div>
+
+  <p class="footer">
+    ATEM Wireless Tally &mdash; ESP8266<br>
+    <a href="https://github.com/kokitutaya0224/atem-wireless-tally" target="_blank">GitHub</a>
+  </p>
+</div>
+</body>
+</html>
