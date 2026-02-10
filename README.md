@@ -81,3 +81,6 @@ pio run --target upload
 ## ライセンス
 
 SKAARHOJ ライブラリは GPL v3 に基づきます。詳細は `lib/ATEMmin/license.txt` を参照してください。
+
+簡単インストール
+https://kokitutaya0224.github.io/atem-wireless-tally/
