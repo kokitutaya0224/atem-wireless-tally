@@ -342,20 +342,6 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
       </select>
     </div>
     <div class="card">
-      <div class="section-title">Advanced</div>
-      <label>Portal AP IP Address</label>
-      <div class="ip-row">
-        <input type="number" name="ap1" min="0" max="255" placeholder="192" value="%AP1%">
-        <span class="dot">.</span>
-        <input type="number" name="ap2" min="0" max="255" placeholder="168" value="%AP2%">
-        <span class="dot">.</span>
-        <input type="number" name="ap3" min="0" max="255" placeholder="4" value="%AP3%">
-        <span class="dot">.</span>
-        <input type="number" name="ap4" min="0" max="255" placeholder="1" value="%AP4%">
-      </div>
-      <p style="font-size:0.72em;color:#999;margin-top:-10px;">Next portal access will use this IP</p>
-    </div>
-    <div class="card">
       <div class="section-title">LED Test</div>
       <div style="display:flex;gap:10px;">
         <button type="button" class="btn btn-test btn-red" onclick="testLed('red')">PGM</button>
@@ -619,7 +605,7 @@ void startTally() {
   Serial.printf("ATEM: %d.%d.%d.%d\n", config.atemIp[0], config.atemIp[1], config.atemIp[2], config.atemIp[3]);
   Serial.printf("Camera: %d\n", config.cameraNumber);
 
-  WiFi.mode(WIFI_STA);
+  WiFi.mode(WIFI_AP_STA);
 
   // 固定IP設定
   if (config.useStaticIp == 1) {
@@ -650,6 +636,17 @@ void startTally() {
   Serial.println();
   Serial.print("Connected! IP: ");
   Serial.println(WiFi.localIP());
+
+  // AP を常時起動（設定変更用）
+  WiFi.softAP(AP_SSID, AP_PASS);
+  Serial.printf("AP active: http://%s\n", WiFi.softAPIP().toString().c_str());
+
+  server.on("/", handleRoot);
+  server.on("/save", HTTP_POST, handleSave);
+  server.on("/scan", handleScan);
+  server.on("/led", handleLed);
+  server.on("/reset", handleReset);
+  server.begin();
 
   IPAddress atemIP(config.atemIp[0], config.atemIp[1], config.atemIp[2], config.atemIp[3]);
   atemSwitcher.begin(atemIP);
@@ -758,6 +755,8 @@ void loop() {
     updateLED();
     return;
   }
+
+  server.handleClient();
 
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("WiFi lost! Restarting...");
