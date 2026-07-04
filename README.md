@@ -3,6 +3,10 @@
 ESP8266ベースのBlackmagic ATEM スイッチャー用ワイヤレスタリーライトシステム。
 ブラウザから全ての設定が可能なキャプティブポータル付き。
 
+> **LoRa 版もあります**: WiFi の届かない現場向けに、E220-900T22S(JP) を使った
+> 920MHz LoRa 版（ベース局 + 受信機）を追加しました。→ [docs/lora-tally.md](docs/lora-tally.md)
+> ビルド環境: `pio run -e lora_base` / `pio run -e lora_tally`（従来 WiFi 版は `-e esp8266`）
+
 ## 機能
 
 - ATEM スイッチャーとWiFi経由で直接通信
