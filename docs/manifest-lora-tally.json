@@ -1,0 +1,13 @@
+{
+  "name": "ATEM LoRa Tally - Receiver",
+  "version": "1.0.0",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP8266",
+      "parts": [
+        { "path": "firmware/lora-tally.bin", "offset": 0 }
+      ]
+    }
+  ]
+}
