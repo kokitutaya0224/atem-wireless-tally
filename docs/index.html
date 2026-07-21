@@ -217,6 +217,10 @@
       無線設定（CH10 / 922.6MHz / SF7 / 13dBm）はファームウェアが起動時に自動で書き込むため、E220側の事前設定は不要です。
       詳細は <a href="https://github.com/kokitutaya0224/atem-wireless-tally/blob/main/docs/lora-tally.md" target="_blank">docs/lora-tally.md</a> を参照。
     </p>
+    <p class="note">
+      設定ページ下部の「Status」に <strong>LoRa: OK</strong> / <strong>NO SIGNAL</strong>（電波を受信できていない）/
+      <strong>MODULE ERROR</strong>（E220自体が応答していない＝配線・電源の問題）が表示され、切り分けに使えます。
+    </p>
   </div>
 
   <div class="card">
@@ -267,6 +271,9 @@ Reset Button (Optional)
       <tr><td><span class="led-dot dot-white"></span>White (blink)</td><td>Setup portal mode</td></tr>
       <tr><td><span class="led-dot dot-green"></span>Green (solid)</td><td>ATEM connected（LoRaベース局のみ）</td></tr>
     </table>
+    <p class="note">
+      設定ページの「LED Test」ボタンは、押すと3秒間そのままの色を保持します（タリー状態の点滅に上書きされません）。
+    </p>
   </div>
 
   <div class="card">

@@ -102,6 +102,11 @@ unsigned long lastPacketTime = 0;
 uint32_t curPgm = 0, curPvw = 0;
 bool     curAtemOk = false;
 int      lastRssiDbm = 0;
+bool     loraReady = false;
+
+// LED テスト: 数秒間タリー状態の描画を止めてテスト色を保持する
+unsigned long ledTestUntil = 0;
+uint8_t ledTestR = 0, ledTestG = 0, ledTestB = 0;
 
 // ============================================================
 // RGB LED 制御 (コモンアノード: 255-value で反転)
@@ -167,6 +172,7 @@ void loraSetup() {
   for (int attempt = 1; attempt <= 3; attempt++) {
     if (lora.configure(LORA_ADDR, LORA_REG0, LORA_REG1, LORA_CH, LORA_REG3)) {
       Serial.println("LoRa E220 configured (CH10 / SF7 / RX)");
+      loraReady = true;
       return;
     }
     Serial.printf("LoRa E220 config failed (attempt %d/3)\n", attempt);
@@ -308,8 +314,10 @@ void handleRoot() {
   html.replace("%CAM_OPTIONS%", options);
 
   String status;
-  if (millis() - lastPacketTime > LORA_TIMEOUT_MS || lastPacketTime == 0) {
-    status = "LoRa: NO SIGNAL";
+  if (!loraReady) {
+    status = "LoRa: MODULE ERROR (E220 not responding - check wiring)";
+  } else if (millis() - lastPacketTime > LORA_TIMEOUT_MS || lastPacketTime == 0) {
+    status = "LoRa: NO SIGNAL (no packets from base station)";
   } else {
     status = "LoRa: OK (RSSI " + String(lastRssiDbm) + " dBm)<br>ATEM: " +
              (curAtemOk ? "connected" : "disconnected");
@@ -334,9 +342,11 @@ void handleSave() {
 
 void handleLed() {
   String c = server.arg("c");
-  if (c == "red") setRGB(255, 0, 0);
-  else if (c == "green") setRGB(0, 255, 0);
-  else setRGB(0, 0, 0);
+  if (c == "red") { ledTestR = 255; ledTestG = 0; ledTestB = 0; }
+  else if (c == "green") { ledTestR = 0; ledTestG = 255; ledTestB = 0; }
+  else { ledTestR = 0; ledTestG = 0; ledTestB = 0; }
+  ledTestUntil = millis() + 3000;  // タリー状態機械の再描画から3秒間保護
+  setRGB(ledTestR, ledTestG, ledTestB);
   server.send(200, "text/plain", "ok");
 }
 
@@ -408,7 +418,12 @@ void loop() {
     else                      currentState = TALLY_OFF;
   }
 
-  updateLED();
+  if (ledTestUntil != 0 && millis() < ledTestUntil) {
+    // LEDテスト中: タリー状態の描画をスキップしてテスト色を保持
+  } else {
+    ledTestUntil = 0;
+    updateLED();
+  }
 
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');

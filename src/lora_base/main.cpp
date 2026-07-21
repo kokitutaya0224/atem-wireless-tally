@@ -95,6 +95,10 @@ uint32_t lastPvw = 0xFFFFFFFF;
 bool     lastAtemOk = false;
 unsigned long lastTxTime = 0;
 
+// LED テスト: 数秒間タリー状態の描画を止めてテスト色を保持する
+unsigned long ledTestUntil = 0;
+uint8_t ledTestR = 0, ledTestG = 0, ledTestB = 0;
+
 // ============================================================
 // EEPROM 読み書き
 // ============================================================
@@ -349,6 +353,10 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
         <button type="button" class="btn btn-test btn-off" onclick="testLed('off')">OFF</button>
       </div>
     </div>
+    <div class="card">
+      <div class="section-title">Status</div>
+      <p style="font-size:0.85em;color:#666;line-height:1.8;">LoRa: %LORA_STATUS%</p>
+    </div>
     <button type="submit">Save & Restart</button>
   </form>
   <p class="footer" id="footerIp">ATEM-Tally &mdash; %FOOTER_IP%</p>
@@ -484,6 +492,8 @@ String buildPage() {
   IPAddress currentApIp = WiFi.softAPIP();
   html.replace("%FOOTER_IP%", currentApIp.toString());
 
+  html.replace("%LORA_STATUS%", loraReady ? "OK" : "MODULE ERROR (E220 not responding - check wiring)");
+
   return html;
 }
 
@@ -545,9 +555,11 @@ void handleSave() {
 
 void handleLed() {
   String c = server.arg("c");
-  if (c == "red") { setRGB(255, 0, 0); }
-  else if (c == "green") { setRGB(0, 255, 0); }
-  else { setRGB(0, 0, 0); }
+  if (c == "red") { ledTestR = 255; ledTestG = 0; ledTestB = 0; }
+  else if (c == "green") { ledTestR = 0; ledTestG = 255; ledTestB = 0; }
+  else { ledTestR = 0; ledTestG = 0; ledTestB = 0; }
+  ledTestUntil = millis() + 3000;  // タリー状態機械の再描画から3秒間保護
+  setRGB(ledTestR, ledTestG, ledTestB);
   server.send(200, "text/plain", "ok");
 }
 
@@ -658,6 +670,13 @@ void setRGB(uint8_t r, uint8_t g, uint8_t b) {
   analogWrite(PIN_B, 255 - b);
 }
 
+// LEDテスト中は true。期限切れなら自動的にリセットする
+bool ledTestActive() {
+  if (ledTestUntil != 0 && millis() < ledTestUntil) return true;
+  ledTestUntil = 0;
+  return false;
+}
+
 void updateLED() {
   switch (currentState) {
     case BASE_CONNECTED:
@@ -759,7 +778,7 @@ void setup() {
 void loop() {
   if (portalMode) {
     server.handleClient();
-    updateLED();
+    if (!ledTestActive()) updateLED();
     return;
   }
 
@@ -802,7 +821,7 @@ void loop() {
     }
   }
 
-  updateLED();
+  if (!ledTestActive()) updateLED();
 
   if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');
