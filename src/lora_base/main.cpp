@@ -34,12 +34,15 @@
 #define LORA_TX     D1   // GPIO5  -> E220 RXD
 #define LORA_RX     D2   // GPIO4  <- E220 TXD
 
-// 無線設定（受信機と一致させること）: CH10=922.6MHz, SF7/BW125, 13dBm, 透過, RSSI付加
-#define LORA_ADDR   0x0000
-#define LORA_REG0   0x68   // UART 9600 + AirRate SF7/BW125 (5,469bps)
-#define LORA_REG1   0x01   // ペイロード200B, 送信出力13dBm
-#define LORA_CH     0x0A   // CH10（CH0-14は送信休止50msのみで運用可）
-#define LORA_REG3   0x80   // RSSIバイト付加ON, 透過送信
+// 無線設定（受信機側で同じチャンネルを選ぶこと）: SF7/BW125, 13dBm, 透過, RSSI付加
+// チャンネルは設定ポータルで選択可能（CH0-14、送信休止50msのみで運用可。CH15以降は1時間360秒制限があり不可）
+#define LORA_ADDR      0x0000
+#define LORA_REG0      0x68   // UART 9600 + AirRate SF7/BW125 (5,469bps)
+#define LORA_REG1      0x01   // ペイロード200B, 送信出力13dBm
+#define LORA_CH_MIN    0
+#define LORA_CH_MAX    14
+#define LORA_CH_DEFAULT 10   // CH10 = 922.6MHz
+#define LORA_REG3      0x80   // RSSIバイト付加ON, 透過送信
 
 #define LORA_HEARTBEAT_MS 500   // 変化がなくてもこの間隔で送信
 #define LORA_MIN_GAP_MS   60    // 送信間の最小間隔（モジュールの50ms休止に余裕）
@@ -52,7 +55,7 @@ const char* AP_PASS = "";
 // ============================================================
 
 #define EEPROM_SIZE 512
-#define EEPROM_MAGIC 0xB0  // 構造体変更のため更新
+#define EEPROM_MAGIC 0xB1  // 構造体変更のため更新（loraChannel追加）
 
 struct Config {
   uint8_t  magic;
@@ -65,6 +68,7 @@ struct Config {
   uint8_t  gateway[4];
   uint8_t  subnet[4];
   uint8_t  apIp[4];        // APモードのIP (デフォルト: 192.168.4.1)
+  uint8_t  loraChannel;    // 0-14。同じ会場で複数の送信機を使う場合は機体ごとに変える
 } config;
 
 // ============================================================
@@ -346,6 +350,15 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
       </div>
     </div>
     <div class="card">
+      <div class="section-title">Radio</div>
+      <label>LoRa Channel</label>
+      <select name="ch">%CH_OPTIONS%</select>
+      <p style="font-size:0.75em;color:#999;margin-top:-12px;margin-bottom:18px;">
+        同じ会場で送信機を複数台使う場合は、送信機ごとに異なるチャンネルを設定し、
+        対応する受信機も同じチャンネルに合わせてください。
+      </p>
+    </div>
+    <div class="card">
       <div class="section-title">LED Test</div>
       <div style="display:flex;gap:10px;">
         <button type="button" class="btn btn-test btn-red" onclick="testLed('red')">PGM</button>
@@ -494,6 +507,15 @@ String buildPage() {
 
   html.replace("%LORA_STATUS%", loraReady ? "OK" : "MODULE ERROR (E220 not responding - check wiring)");
 
+  uint8_t curCh = hasValidConfig() ? config.loraChannel : LORA_CH_DEFAULT;
+  String chOptions;
+  for (uint8_t ch = LORA_CH_MIN; ch <= LORA_CH_MAX; ch++) {
+    chOptions += "<option value=\"" + String(ch) + "\"";
+    if (ch == curCh) chOptions += " selected";
+    chOptions += ">CH" + String(ch) + "</option>";
+  }
+  html.replace("%CH_OPTIONS%", chOptions);
+
   return html;
 }
 
@@ -537,11 +559,15 @@ void handleSave() {
   config.apIp[2] = server.arg("ap3").toInt();
   config.apIp[3] = server.arg("ap4").toInt();
 
+  int ch = server.arg("ch").toInt();
+  config.loraChannel = (ch >= LORA_CH_MIN && ch <= LORA_CH_MAX) ? ch : LORA_CH_DEFAULT;
+
   saveConfig();
 
   Serial.println("Config saved!");
   Serial.printf("  SSID: %s\n", config.wifiSsid);
   Serial.printf("  ATEM: %d.%d.%d.%d\n", config.atemIp[0], config.atemIp[1], config.atemIp[2], config.atemIp[3]);
+  Serial.printf("  LoRa CH: %d\n", config.loraChannel);
   if (config.useStaticIp) {
     Serial.printf("  Tally IP: %d.%d.%d.%d\n", config.tallyIp[0], config.tallyIp[1], config.tallyIp[2], config.tallyIp[3]);
   } else {
@@ -711,14 +737,14 @@ void updateLED() {
 // LoRa 送信
 // ============================================================
 
-void loraSetup() {
+void loraSetup(uint8_t channel) {
   loraSerial.begin(9600);
   lora.begin(loraSerial, LORA_M0, LORA_M1);
 
   for (int attempt = 1; attempt <= 3; attempt++) {
-    if (lora.configure(LORA_ADDR, LORA_REG0, LORA_REG1, LORA_CH, LORA_REG3)) {
+    if (lora.configure(LORA_ADDR, LORA_REG0, LORA_REG1, channel, LORA_REG3)) {
       loraReady = true;
-      Serial.println("LoRa E220 configured (CH10 / SF7 / 13dBm)");
+      Serial.printf("LoRa E220 configured (CH%d / SF7 / 13dBm)\n", channel);
       return;
     }
     Serial.printf("LoRa E220 config failed (attempt %d/3)\n", attempt);
@@ -759,9 +785,8 @@ void setup() {
     delay(1000);
   }
 
-  loraSetup();
-
   loadConfig();
+  loraSetup(hasValidConfig() ? config.loraChannel : LORA_CH_DEFAULT);
 
   if (hasValidConfig()) {
     startTally();

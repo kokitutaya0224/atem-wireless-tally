@@ -38,12 +38,14 @@
 #define LORA_TX     D1   // GPIO5  -> E220 RXD
 #define LORA_RX     D2   // GPIO4  <- E220 TXD
 
-// 無線設定（ベース局と一致させること）
-#define LORA_ADDR   0x0000
-#define LORA_REG0   0x68   // UART 9600 + AirRate SF7/BW125 (5,469bps)
-#define LORA_REG1   0x01   // ペイロード200B, 送信出力13dBm
-#define LORA_CH     0x0A   // CH10 = 922.6MHz
-#define LORA_REG3   0x80   // RSSIバイト付加ON, 透過送信
+// 無線設定（チャンネルは自分のベース局と同じ値を設定ポータルで選ぶこと）
+#define LORA_ADDR      0x0000
+#define LORA_REG0      0x68   // UART 9600 + AirRate SF7/BW125 (5,469bps)
+#define LORA_REG1      0x01   // ペイロード200B, 送信出力13dBm
+#define LORA_CH_MIN    0
+#define LORA_CH_MAX    14
+#define LORA_CH_DEFAULT 10   // CH10 = 922.6MHz
+#define LORA_REG3      0x80   // RSSIバイト付加ON, 透過送信
 
 #define LORA_TIMEOUT_MS 2500  // これ以上パケットが来なければ電波ロスト表示
 
@@ -57,11 +59,12 @@ String apSsid;
 // ============================================================
 
 #define EEPROM_SIZE  64
-#define EEPROM_MAGIC 0xC1
+#define EEPROM_MAGIC 0xC2  // 構造体変更のため更新（loraChannel追加）
 
 struct Config {
   uint8_t magic;
   uint8_t cameraNumber;  // 1-20
+  uint8_t loraChannel;   // 0-14。自分のベース局と同じ値にすること
 } config;
 
 void loadConfig() {
@@ -71,7 +74,9 @@ void loadConfig() {
   if (config.magic != EEPROM_MAGIC || config.cameraNumber < 1 || config.cameraNumber > 20) {
     config.magic = EEPROM_MAGIC;
     config.cameraNumber = 1;
+    config.loraChannel = LORA_CH_DEFAULT;
   }
+  if (config.loraChannel > LORA_CH_MAX) config.loraChannel = LORA_CH_DEFAULT;
 }
 
 void saveConfig() {
@@ -168,13 +173,13 @@ void updateLED() {
 // LoRa 受信
 // ============================================================
 
-void loraSetup() {
+void loraSetup(uint8_t channel) {
   loraSerial.begin(9600);
   lora.begin(loraSerial, LORA_M0, LORA_M1);
 
   for (int attempt = 1; attempt <= 3; attempt++) {
-    if (lora.configure(LORA_ADDR, LORA_REG0, LORA_REG1, LORA_CH, LORA_REG3)) {
-      Serial.println("LoRa E220 configured (CH10 / SF7 / RX)");
+    if (lora.configure(LORA_ADDR, LORA_REG0, LORA_REG1, channel, LORA_REG3)) {
+      Serial.printf("LoRa E220 configured (CH%d / SF7 / RX)\n", channel);
       loraReady = true;
       return;
     }
@@ -285,8 +290,16 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
       <div class="section-title">Camera</div>
       <label>Camera Number</label>
       <select name="cam">%CAM_OPTIONS%</select>
-      <button type="submit">Save & Restart</button>
     </div>
+    <div class="card">
+      <div class="section-title">Radio</div>
+      <label>LoRa Channel</label>
+      <select name="ch">%CH_OPTIONS%</select>
+      <p style="font-size:0.75em;color:#999;margin-top:-12px;margin-bottom:0;">
+        自分が受信するベース局（送信機）と同じチャンネルに合わせてください。
+      </p>
+    </div>
+    <button type="submit" style="margin-top:20px;">Save & Restart</button>
   </form>
   <div class="card">
     <div class="section-title">Status</div>
@@ -317,14 +330,22 @@ void handleRoot() {
   }
   html.replace("%CAM_OPTIONS%", options);
 
-  String status;
+  String chOptions;
+  for (uint8_t ch = LORA_CH_MIN; ch <= LORA_CH_MAX; ch++) {
+    chOptions += "<option value=\"" + String(ch) + "\"";
+    if (config.loraChannel == ch) chOptions += " selected";
+    chOptions += ">CH" + String(ch) + "</option>";
+  }
+  html.replace("%CH_OPTIONS%", chOptions);
+
+  String status = "Channel: CH" + String(config.loraChannel) + "<br>";
   if (!loraReady) {
-    status = "LoRa: MODULE ERROR (E220 not responding - check wiring)";
+    status += "LoRa: MODULE ERROR (E220 not responding - check wiring)";
   } else if (millis() - lastPacketTime > LORA_TIMEOUT_MS || lastPacketTime == 0) {
-    status = "LoRa: NO SIGNAL (no packets from base station)";
+    status += "LoRa: NO SIGNAL (no packets from base station)";
   } else {
-    status = "LoRa: OK (RSSI " + String(lastRssiDbm) + " dBm)<br>ATEM: " +
-             (curAtemOk ? "connected" : "disconnected");
+    status += "LoRa: OK (RSSI " + String(lastRssiDbm) + " dBm)<br>ATEM: " +
+               (curAtemOk ? "connected" : "disconnected");
   }
   html.replace("%STATUS%", status);
 
@@ -335,11 +356,14 @@ void handleSave() {
   int cam = server.arg("cam").toInt();
   if (cam >= 1 && cam <= 20) {
     config.cameraNumber = cam;
-    saveConfig();
   }
+  int ch = server.arg("ch").toInt();
+  config.loraChannel = (ch >= LORA_CH_MIN && ch <= LORA_CH_MAX) ? ch : LORA_CH_DEFAULT;
+  saveConfig();
   server.send(200, "text/html",
               "<meta charset='UTF-8'><body style='font-family:sans-serif;text-align:center;padding-top:40px'>"
-              "<h2>Saved!</h2><p>Camera " + String(config.cameraNumber) + "</p></body>");
+              "<h2>Saved!</h2><p>Camera " + String(config.cameraNumber) +
+              " / CH" + String(config.loraChannel) + "</p></body>");
   delay(1000);
   ESP.restart();
 }
@@ -389,9 +413,9 @@ void setup() {
     delay(1000);
   }
 
-  Serial.printf("Camera: %d\n", config.cameraNumber);
+  Serial.printf("Camera: %d, LoRa CH: %d\n", config.cameraNumber, config.loraChannel);
 
-  loraSetup();
+  loraSetup(config.loraChannel);
 
   // チップIDの下4桁を個体識別IDとして使う（現場で複数受信機を見分けるため）
   deviceId = String(ESP.getChipId(), HEX);
