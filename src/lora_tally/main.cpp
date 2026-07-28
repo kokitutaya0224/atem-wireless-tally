@@ -11,7 +11,8 @@
  *   青点滅       = ベース局は生きているが ATEM 未接続
  *   マゼンタ点滅 = LoRa 電波ロスト（ベース局停止 or 圏外）
  *
- * カメラ番号設定: AP "ATEM-Tally-RX" に接続して http://192.168.4.1
+ * カメラ番号設定: AP "ATEM-Tally-RX-XXXX"（XXXXはチップIDから生成される個体識別ID）
+ * に接続して http://192.168.4.1
  */
 
 #include <ESP8266WiFi.h>
@@ -46,8 +47,10 @@
 
 #define LORA_TIMEOUT_MS 2500  // これ以上パケットが来なければ電波ロスト表示
 
-const char* AP_SSID = "ATEM-Tally-RX";
+const char* AP_SSID_PREFIX = "ATEM-Tally-RX";
 const char* AP_PASS = "";
+String deviceId;   // チップIDから生成する4桁の個体識別ID（現場で複数台を見分けるため）
+String apSsid;
 
 // ============================================================
 // EEPROM データ構造
@@ -275,7 +278,7 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
 <div class="container">
   <div class="header">
     <h1>ATEM Tally RX</h1>
-    <p>LoRa Tally Receiver</p>
+    <p>LoRa Tally Receiver &middot; ID: %DEVICE_ID%</p>
   </div>
   <form action="/save" method="POST">
     <div class="card">
@@ -304,6 +307,7 @@ const char HTML_PAGE[] PROGMEM = R"rawliteral(
 
 void handleRoot() {
   String html = FPSTR(HTML_PAGE);
+  html.replace("%DEVICE_ID%", deviceId);
 
   String options;
   for (int i = 1; i <= 20; i++) {
@@ -389,10 +393,17 @@ void setup() {
 
   loraSetup();
 
+  // チップIDの下4桁を個体識別IDとして使う（現場で複数受信機を見分けるため）
+  deviceId = String(ESP.getChipId(), HEX);
+  deviceId.toUpperCase();
+  if (deviceId.length() > 4) deviceId = deviceId.substring(deviceId.length() - 4);
+  while (deviceId.length() < 4) deviceId = "0" + deviceId;
+
   // 設定用 AP（常時起動）
+  apSsid = String(AP_SSID_PREFIX) + "-" + deviceId;
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(AP_SSID, AP_PASS);
-  Serial.printf("Setup AP: %s -> http://%s\n", AP_SSID, WiFi.softAPIP().toString().c_str());
+  WiFi.softAP(apSsid.c_str(), AP_PASS);
+  Serial.printf("Setup AP: %s -> http://%s\n", apSsid.c_str(), WiFi.softAPIP().toString().c_str());
 
   server.on("/", handleRoot);
   server.on("/save", HTTP_POST, handleSave);
