@@ -1,11 +1,27 @@
 # ATEM Wireless Tally
 
 ESP8266ベースのBlackmagic ATEM スイッチャー用ワイヤレスタリーライトシステム。
-ブラウザから全ての設定が可能なキャプティブポータル付き。
+ブラウザから全ての設定が可能なキャプティブポータル付き。**WiFi版**と**LoRa版**の
+2種類のファームウェアがあり、目的に合わせて選べます。
 
-> **LoRa 版もあります**: WiFi の届かない現場向けに、E220-900T22S(JP) を使った
-> 920MHz LoRa 版（ベース局 + 受信機）を追加しました。→ [docs/lora-tally.md](docs/lora-tally.md)
-> ビルド環境: `pio run -e lora_base` / `pio run -e lora_tally`（従来 WiFi 版は `-e esp8266`）
+## 簡単インストール
+
+書き込みだけなら PlatformIO 不要。ブラウザ（Chrome/Edge）から USB 経由で書き込めます。
+
+https://kokitutaya0224.github.io/atem-wireless-tally/
+
+## どちらを使う？
+
+| | WiFi版 | LoRa版 |
+|---|---|---|
+| 通信 | タリー本体がATEMにWiFiで直接接続 | ベース局のみWiFi/ATEMに接続、受信機へ920MHz LoRaで配信 |
+| WiFi環境 | 現場にWiFiが必要（各台がATEMと同じネットワークに入る） | ベース局のみWiFi必須。受信機はWiFi不要 |
+| 台数構成 | 1台ずつ独立動作 | ベース局1台 + 受信機N台（1系統あたり最大20カメラ分） |
+| 複数系統 | 台数分書き込むだけ | ベース局ごとに異なるLoRaチャンネル（CH0〜14）を設定すれば同一会場で複数系統を運用可能 |
+| ビルド環境 | `pio run -e esp8266` | `pio run -e lora_base` / `pio run -e lora_tally` |
+| 詳細 | 本README | [docs/lora-tally.md](docs/lora-tally.md)（配線・無線設定・トラブルシュートを別途記載） |
+
+WiFiの届かない現場や、ATEMのネットワークにタリーを何台も参加させたくない場合はLoRa版が向いています。
 
 ## 機能
 
@@ -18,7 +34,9 @@ ESP8266ベースのBlackmagic ATEM スイッチャー用ワイヤレスタリー
 - 設定はEEPROMに保存（電源OFFでも保持）
 - リセットボタンによる設定初期化
 
-## LED表示
+LoRa版の機能（ベース局・受信機共通の要点）や配線・無線設定は [docs/lora-tally.md](docs/lora-tally.md) を参照してください。
+
+## LED表示（WiFi版）
 
 | 色 | 状態 |
 |---|---|
@@ -28,14 +46,18 @@ ESP8266ベースのBlackmagic ATEM スイッチャー用ワイヤレスタリー
 | 青色（点滅） | ATEM未接続 |
 | 白色（点滅） | 設定ポータルモード |
 
-## 必要なもの
+LoRa版のLED表示（電波ロスト表示などが追加）は [docs/lora-tally.md](docs/lora-tally.md#受信機の-led-表示) を参照。
+
+## 必要なもの（WiFi版）
 
 - ESP8266 開発ボード（NodeMCU v2 等）
 - 4ピン RGB LED（コモンアノード）
 - 220Ω抵抗 × 3
 - ブレッドボードまたはユニバーサル基板
 
-## 配線
+LoRa版の部品リスト（E220モジュール・アンテナ等）は [docs/lora-tally.md](docs/lora-tally.md#使用モジュール) を参照。
+
+## 配線（WiFi版）
 
 ```
 RGB LED (コモンアノード)
@@ -48,7 +70,7 @@ RGB LED (コモンアノード)
 └── D1 (GPIO5) → GND
 ```
 
-## セットアップ
+## セットアップ（WiFi版）
 
 ### 1. ビルド & 書き込み
 
@@ -85,6 +107,3 @@ pio run --target upload
 ## ライセンス
 
 SKAARHOJ ライブラリは GPL v3 に基づきます。詳細は `lib/ATEMmin/license.txt` を参照してください。
-
-簡単インストール
-https://kokitutaya0224.github.io/atem-wireless-tally/
